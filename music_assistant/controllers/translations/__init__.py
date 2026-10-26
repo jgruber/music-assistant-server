@@ -21,6 +21,10 @@ from typing import TYPE_CHECKING, Any
 from music_assistant_models.helpers import create_safe_string
 
 from music_assistant.helpers.api import api_command
+from music_assistant.helpers.custom_providers import (
+    discover_custom_provider_dirs,
+    load_custom_provider_source_strings,
+)
 from music_assistant.helpers.json import load_json_dict
 from music_assistant.models.core_controller import CORE_DOCS_URL, CoreController
 
@@ -76,6 +80,17 @@ class TranslationController(CoreController):
         self._locale_files = await asyncio.to_thread(_discover_locale_files)
         self._available_locales = {SOURCE_LANGUAGE, *self._locale_files}
         self._source = await self._load_flat(SOURCE_FILE)
+        # Merge each custom provider's strings.json into the loaded source table so
+        # out-of-tree providers get the same manifest.name / manifest.description /
+        # config-entry label support as in-tree ones. Build-time Lokalise generation
+        # covers only the in-tree providers (via scripts/build_translations.py), so
+        # this runtime merge is the only place custom provider strings land. A
+        # custom-provider key wins over an in-tree one of the same path, mirroring
+        # the provider-shadowing policy applied in mass.py.
+        if custom_roots := self.mass.custom_provider_roots:
+            dirs = await asyncio.to_thread(discover_custom_provider_dirs, custom_roots)
+            if dirs:
+                self._source.update(await load_custom_provider_source_strings(dirs))
         self.logger.debug(
             "Loaded %s source strings across %s locale(s)",
             len(self._source),

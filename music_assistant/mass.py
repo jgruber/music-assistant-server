@@ -81,6 +81,12 @@ from music_assistant.controllers.webserver.helpers.auth_middleware import get_cu
 from music_assistant.helpers.aiohttp_client import create_clientsession
 from music_assistant.helpers.api import APICommandHandler, api_command
 from music_assistant.helpers.build_info import get_official_build_info
+from music_assistant.helpers.custom_providers import (
+    discover_custom_provider_roots,
+    extend_providers_package_path,
+    walk_provider_manifests,
+    warn_about_custom_provider,
+)
 from music_assistant.helpers.diagnostics import install_diagnostics_log_handler
 from music_assistant.helpers.images import detect_provider_icons
 from music_assistant.helpers.provider_access import visible_music_sources
@@ -123,6 +129,8 @@ LOGGER = logging.getLogger(MASS_LOGGER_NAME)
 
 BASE_DIR = str(Path(__file__).resolve().parent)
 PROVIDERS_PATH = os.path.join(BASE_DIR, "providers")
+# Extra provider roots (storage_path/custom_providers + MASS_EXTRA_PROVIDERS_PATH)
+# are resolved at startup; see helpers.custom_providers.
 # These bounds guard against a wedged provider, they are not a performance budget: several
 # providers load at once on a busy event loop, so a step can take much longer in wall clock
 # time than it takes on its own. Keep them generous enough that a slow host never trips them.
@@ -251,6 +259,14 @@ class MusicAssistant:
         self.command_handlers: dict[str, APICommandHandler] = {}
         self._subscribers: set[EventSubscriptionType] = set()
         self._provider_manifests: dict[str, ProviderManifest] = {}
+        # Domains loaded from a custom provider root (as opposed to the in-tree package).
+        # Public: the translations controller reads this at startup to merge each custom
+        # provider's strings.json, and diagnostics surfaces it so operators can see
+        # which providers are custom at a glance.
+        self.custom_provider_domains: set[str] = set()
+        # Resolved extra provider roots (storage_path/custom_providers + env var).
+        # Populated at start(); empty when nothing is configured.
+        self.custom_provider_roots: list[str] = []
         self._provider_icons: dict[str, dict[ProviderIconVariant, tuple[str, bytes]]] = {}
         self._providers: dict[str, ProviderInstanceType] = {}
         self._tracked_tasks: dict[str, asyncio.Task[Any]] = {}
@@ -286,7 +302,15 @@ class MusicAssistant:
         # the shared http sessions resolve .local names through this zeroconf instance,
         # so it must exist before anything can send a request
         await self.discovery.start_zeroconf()
-        # load all available providers from manifest files
+        # discover extra provider roots (storage_path/custom_providers + env var) and
+        # extend music_assistant.providers.__path__ so the ordinary module loader can
+        # import them by domain. The in-tree providers directory is excluded so an
+        # operator pointing MASS_EXTRA_PROVIDERS_PATH at it (or a symlink of it) does
+        # not get every in-tree provider loaded a second time.
+        self.custom_provider_roots = discover_custom_provider_roots(
+            self.storage_path, exclude=[PROVIDERS_PATH]
+        )
+        extend_providers_package_path(self.custom_provider_roots)
         await self.__load_provider_manifests()
         # setup/migrate storage
         await self._setup_storage()
@@ -1615,18 +1639,24 @@ class MusicAssistant:
                         exc_info=exc,
                     )
 
+        # In-tree providers are walked first, then each extra root in order. A custom
+        # provider sharing a domain with an in-tree one overwrites the in-tree manifest
+        # (same shadowing policy as HA core's custom_components); a WARNING naming the
+        # domain, the path and whether an in-tree provider was shadowed is emitted at
+        # load time so operators see what is in effect.
+        entries = await asyncio.to_thread(
+            lambda: list(
+                walk_provider_manifests(
+                    PROVIDERS_PATH, self.custom_provider_roots, dev_mode=self.dev_mode
+                )
+            )
+        )
         async with TaskManager(self) as tg:
-            for dir_str in await asyncio.to_thread(os.listdir, PROVIDERS_PATH):  # noqa: PTH208, RUF100
-                if dir_str.startswith("."):
-                    # skip hidden directories
-                    continue
-                dir_path = os.path.join(PROVIDERS_PATH, dir_str)
-                if dir_str.startswith("_") and not self.dev_mode:
-                    # only load demo/test providers if debug mode is enabled (e.g. for development)
-                    continue
-                if not await isdir(dir_path):
-                    continue
-                tg.create_task(load_provider_manifest(dir_str, dir_path))
+            for domain, provider_dir, is_custom, shadows in entries:
+                if is_custom:
+                    warn_about_custom_provider(domain, provider_dir, shadows=shadows)
+                    self.custom_provider_domains.add(domain)
+                tg.create_task(load_provider_manifest(domain, provider_dir))
         self.logger.debug("Loaded %s provider manifests", len(self._provider_manifests))
 
     async def _update_available_providers_cache(self) -> None:
