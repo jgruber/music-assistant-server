@@ -1,15 +1,20 @@
 {
   "type": "music",
   "domain": "spotify",
-  "stage": "stable",
-  "name": "Spotify",
-  "description": "Stream music, playlists, podcasts, and discover new songs via Spotify’s ecosystem.",
-  "codeowners": ["@music-assistant"],
+  "name": "Mixtape",
+  "description": "Spotify catalog, YouTube audio. Reads open.spotify.com's public web catalog for search and playlist metadata, and plays audio from YouTube using the same pipeline as the Boombox provider. Does not retrieve or play audio from Spotify. Does not require, use, or substitute for a Spotify account. No library sync, no personalized recommendations, no official support. If you have Spotify Premium, keep the official Spotify provider installed alongside this one.",
+  "codeowners": ["@jgruber"],
   "credits": [
-    "[Spotify Soloist (by Spotify)](https://developer.spotify.com/documentation/soloist)",
-    "[librespot (by librespot-org)](https://github.com/librespot-org/librespot)"
+    "[spotube](https://github.com/team-spotube/spotube)",
+    "[spotapi](https://pypi.org/project/spotapi/)"
   ],
-  "requirements": [],
-  "documentation": "https://music-assistant.io/music-providers/spotify/",
-  "multi_instance": true
+  "requirements": [
+    "spotapi>=1.0",
+    "ytmusicapi==1.12.3",
+    "yt-dlp>=2025.09.26"
+  ],
+  "documentation": "https://github.com/jgruber/music-assistant-boombox-mixtape-sources",
+  "stage": "alpha",
+  "multi_instance": false,
+  "icon": "cassette"
 }

@@ -1,0 +1,15 @@
+{
+  "type": "music",
+  "domain": "ytmusic_anon",
+  "name": "Boombox",
+  "description": "Public YouTube Music. Browses, searches and plays what any logged-out visitor to music.youtube.com would see, resolved to playable URLs with yt-dlp. Does not substitute for YouTube Music Premium: no library sync, no personalized recommendations, no ad-free guarantee. If you have Premium, keep the official YouTube Music provider installed alongside this one.",
+  "codeowners": ["@jgruber"],
+  "requirements": [
+    "ytmusicapi==1.12.3",
+    "yt-dlp>=2025.09.26"
+  ],
+  "documentation": "https://github.com/jgruber/music-assistant-boombox-mixtape-sources",
+  "stage": "alpha",
+  "multi_instance": false,
+  "icon": "boombox"
+}

@@ -1,0 +1,6 @@
+{
+  "manifest": {
+    "name": "Boombox",
+    "description": "Public YouTube Music. Browses, searches and plays what any logged-out visitor to music.youtube.com would see, resolved to playable URLs with yt-dlp. Does not substitute for YouTube Music Premium: no library sync, no personalized recommendations, no ad-free guarantee. If you have Premium, keep the official YouTube Music provider installed alongside this one."
+  }
+}
