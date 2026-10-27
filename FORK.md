@@ -56,6 +56,20 @@ Mount a persistent directory at `/data`; any
 `/data/custom_providers/<domain>/` subdirectory is loaded as a provider on
 startup.
 
+### Home Assistant OS / Supervised
+
+A thin wrapper add-on is published at
+[`jgruber/music-assistant-server-addon`](https://github.com/jgruber/music-assistant-server-addon).
+It builds from this fork's Docker image and leaves the operator's choice of
+custom providers to the add-on's own start-up script, which can
+`git clone` provider repos into `/data/custom_providers/` before Music
+Assistant launches. The add-on repo is one worked example of how a
+Supervisor-managed install can opt in to any set of custom providers; others
+are free to fork or template from it.
+
+To install: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, paste
+the add-on URL above, open the resulting entry and click **Install**.
+
 ### From source
 
 ```
