@@ -1,4 +1,4 @@
-# jgruber/server — a fork of music-assistant/server
+# jgruber/music-assistant-server — a fork of music-assistant/server
 
 This is a soft fork of [music-assistant/server](https://github.com/music-assistant/server).
 Upstream rejected the two anonymous-access music providers below and the
@@ -48,7 +48,7 @@ in; no overlay patches needed.
 ### From source
 
 ```
-git clone https://github.com/jgruber/server.git -b main music-assistant-server
+git clone https://github.com/jgruber/music-assistant-server.git -b main
 cd music-assistant-server
 # Same build steps as upstream
 ```
