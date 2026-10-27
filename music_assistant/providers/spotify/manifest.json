@@ -13,7 +13,7 @@
     "ytmusicapi==1.12.3",
     "yt-dlp>=2025.09.26",
     "bgutil-ytdlp-pot-provider==2.0.1",
-    "deno==2.9.5",
+    "deno==2.9.6",
     "redis",
     "websockets",
     "pymongo"

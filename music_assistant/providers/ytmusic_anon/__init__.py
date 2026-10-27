@@ -234,12 +234,14 @@ class YTMusicAnonymous(MusicProvider):
                     item_id="home",
                     provider=self.instance_id,
                     name="Home",
+                    translation_key="browse.home",
                     path=f"{prefix}home",
                 ),
                 BrowseFolder(
                     item_id="moods",
                     provider=self.instance_id,
                     name="Moods & Genres",
+                    translation_key="browse.moods",
                     path=f"{prefix}moods",
                 ),
             ]

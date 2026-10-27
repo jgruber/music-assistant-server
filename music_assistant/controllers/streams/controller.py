@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from ipaddress import ip_address
 from math import ceil
 from typing import TYPE_CHECKING, cast
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from aiofiles.os import wrap
@@ -56,6 +57,7 @@ from music_assistant.constants import (
     CONF_OUTPUT_CODEC,
     CONF_PLAYER_QUEUES,
     CONF_PREFER_WAV_FOR_LIVE_SOURCES,
+    CONF_PUBLISH_BASE_URL,
     CONF_PUBLISH_IP,
     CONF_VALUE_AUTO,
     CONF_VOLUME_NORMALIZATION_FIXED_GAIN_RADIO,
@@ -564,6 +566,16 @@ class StreamsController(CoreController):
                 advanced=True,
                 requires_reload=True,
                 validate=_is_valid_publish_ip,
+            ),
+            ConfigEntry(
+                key=CONF_PUBLISH_BASE_URL,
+                type=ConfigEntryType.STRING,
+                default_value=None,
+                required=False,
+                category="generic",
+                advanced=True,
+                requires_reload=True,
+                validate=_is_valid_publish_base_url,
             ),
             ConfigEntry(
                 key=CONF_BIND_PORT,
@@ -2692,7 +2704,16 @@ class StreamsController(CoreController):
         )
         # the single address players are handed, taken from the top of the ranked list
         self.publish_ip = self._publish_addresses[0]
-        self._base_url = f"http://{format_ip_for_url(self.publish_ip)}:{self.publish_port}"
+        # publish_base_url, when set, overrides the generated URL entirely so operators
+        # can place the stream server behind a reverse proxy (TLS, friendly hostname,
+        # different port). publish_ip stays an IP for mDNS/AirPlay discovery.
+        configured_base_url = self.mass.config.get_raw_core_config_value(
+            self.domain, CONF_PUBLISH_BASE_URL, None
+        )
+        if configured_base_url and _is_valid_publish_base_url(configured_base_url):
+            self._base_url = str(configured_base_url).rstrip("/")
+        else:
+            self._base_url = f"http://{format_ip_for_url(self.publish_ip)}:{self.publish_port}"
 
     async def _handle_info_request(self, request: web.Request) -> web.Response:
         """Answer a reachability probe with this server's id."""
@@ -2758,6 +2779,29 @@ def _is_valid_publish_ip(value: ConfigValueType) -> bool:
     try:
         ip_address(value)
     except ValueError:
+        return False
+    return True
+
+
+def _is_valid_publish_base_url(value: ConfigValueType) -> bool:
+    """Return whether a configured publish_base_url value is usable.
+
+    An empty value (unset) is allowed and means the default http://<publish_ip>:
+    <bind_port> URL is used. A non-empty value must be an http(s) scheme + host
+    URL with no path (other than '/'), no query, and no fragment.
+    """
+    if not value:
+        return True
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.netloc:
+        return False
+    if parsed.path and parsed.path != "/":
+        return False
+    if parsed.query or parsed.fragment:
         return False
     return True
 
