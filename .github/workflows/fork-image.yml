@@ -21,8 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pin to the base image upstream's stable channel uses. Bump when upstream bumps.
-  BASE_IMAGE_VERSION: "1.6.3"
+  # Base image version. Upstream dev tracks the beta/nightly base (1.7.0); the stable
+  # 1.6.3 base is too old for the current dev source tree (av 16.1.0 vs required 18.1.0).
+  BASE_IMAGE_VERSION: "1.7.0"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/music-assistant-server
 
