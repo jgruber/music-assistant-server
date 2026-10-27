@@ -1,6 +1,0 @@
-{
-  "manifest": {
-    "name": "JW.org Music",
-    "description": "Music catalog from jw.org. Fetches the publicly-published album lists shown at jw.org/library/music-songs/ (Sing Out Joyfully, Original Songs, Sing to Jehovah, and more) and plays each track from the official MP3 URL the site serves on its public download pages. No account required."
-  }
-}
