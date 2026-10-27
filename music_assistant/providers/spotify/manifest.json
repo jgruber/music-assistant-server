@@ -11,7 +11,12 @@
   "requirements": [
     "spotapi>=1.0",
     "ytmusicapi==1.12.3",
-    "yt-dlp>=2025.09.26"
+    "yt-dlp>=2025.09.26",
+    "bgutil-ytdlp-pot-provider==2.0.1",
+    "deno==2.9.5",
+    "redis",
+    "websockets",
+    "pymongo"
   ],
   "documentation": "https://github.com/jgruber/music-assistant-boombox-mixtape-sources",
   "stage": "alpha",
