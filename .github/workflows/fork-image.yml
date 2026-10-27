@@ -1,0 +1,157 @@
+name: Fork Docker image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push to ghcr.io (false = build only)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  # Serialize image builds for the same ref; cancel in-flight on a newer push.
+  group: fork-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin to the base image upstream's stable channel uses. Bump when upstream bumps.
+  BASE_IMAGE_VERSION: "1.6.3"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/music-assistant-server
+
+jobs:
+  build:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA_SHORT="$(git rev-parse --short HEAD)"
+          case "${GITHUB_REF}" in
+            refs/tags/v*)
+              VERSION="${GITHUB_REF#refs/tags/v}"
+              CHANNEL="release"
+              ;;
+            refs/heads/main)
+              VERSION="0.0.0+fork.${SHA_SHORT}"
+              CHANNEL="main"
+              ;;
+            *)
+              VERSION="0.0.0+dev.${SHA_SHORT}"
+              CHANNEL="dev"
+              ;;
+          esac
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${VERSION} channel=${CHANNEL}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Stamp version into pyproject.toml
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Dockerfile installs music_assistant-${MASS_VERSION}-py3-none-any.whl.
+          # Stamp the computed version in before building.
+          sed -i 's/^version = "0\.0\.0"$/version = "${{ steps.version.outputs.version }}"/' pyproject.toml
+          grep '^version = ' pyproject.toml
+
+      - name: Build wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv build --wheel --sdist --out-dir dist
+          ls -la dist/
+          # Dockerfile expects both the wheel and the sdist in dist/.
+
+      - name: Compute wheel sha256
+        id: wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          WHEEL="dist/music_assistant-${{ steps.version.outputs.version }}-py3-none-any.whl"
+          test -f "$WHEEL"
+          SHA="$(sha256sum "$WHEEL" | awk '{print $1}')"
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Wheel sha256 = ${SHA}"
+
+      - name: Log in to ghcr.io
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.push }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          case "${{ steps.version.outputs.channel }}" in
+            release)
+              TAGS="${REF}:${{ steps.version.outputs.version }},${REF}:latest"
+              ;;
+            main)
+              TAGS="${REF}:latest,${REF}:main,${REF}:main-${{ steps.version.outputs.sha_short }}"
+              ;;
+            *)
+              TAGS="${REF}:dev-${{ steps.version.outputs.sha_short }}"
+              ;;
+          esac
+          # Multi-line output
+          {
+            echo "tags<<EOF"
+            echo "${TAGS}" | tr ',' '\n'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'workflow_dispatch' || inputs.push }}
+          provenance: false
+          build-args: |
+            BASE_IMAGE_VERSION=${{ env.BASE_IMAGE_VERSION }}
+            MASS_VERSION=${{ steps.version.outputs.version }}
+            MASS_REVISION=${{ steps.version.outputs.revision }}
+            MASS_WHEEL_SHA256=${{ steps.wheel.outputs.sha256 }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=fork-image-${{ steps.version.outputs.channel }}
+          cache-to: type=gha,scope=fork-image-${{ steps.version.outputs.channel }},mode=max
