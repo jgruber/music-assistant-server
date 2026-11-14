@@ -21,9 +21,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Base image version. Upstream dev tracks the beta/nightly base (1.7.0); the stable
-  # 1.6.3 base is too old for the current dev source tree (av 16.1.0 vs required 18.1.0).
-  BASE_IMAGE_VERSION: "1.7.0"
+  # Base image version. Must match upstream's BASE_IMAGE_VERSION_{STABLE,BETA,NIGHTLY}
+  # for the tag we track (upstream release.yml): stable=1.6.3 (av 16.1.0), beta/nightly=1.7.1
+  # (av 19.0.2). Keep this in sync with requirements_all.txt's `av==` pin.
+  BASE_IMAGE_VERSION: "1.7.1"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/music-assistant-server
 
